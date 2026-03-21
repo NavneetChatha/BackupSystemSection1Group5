@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37012.4 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackupClient", "BackupClient\BackupClient.csproj", "{123BEEA3-F7F9-494C-82F6-0F2B5BE4B422}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackupServer", "BackupServer\BackupServer.csproj", "{F8BC78FF-54CC-45D1-9003-E8BA263390E9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{123BEEA3-F7F9-494C-82F6-0F2B5BE4B422}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{123BEEA3-F7F9-494C-82F6-0F2B5BE4B422}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{123BEEA3-F7F9-494C-82F6-0F2B5BE4B422}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{123BEEA3-F7F9-494C-82F6-0F2B5BE4B422}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8BC78FF-54CC-45D1-9003-E8BA263390E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8BC78FF-54CC-45D1-9003-E8BA263390E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8BC78FF-54CC-45D1-9003-E8BA263390E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8BC78FF-54CC-45D1-9003-E8BA263390E9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4311ACB7-B0D3-40E8-A94C-BE648B8BC973}
+	EndGlobalSection
+EndGlobal
