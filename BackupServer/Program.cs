@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.IO;
 
 namespace BackupServer
 {
@@ -66,35 +67,29 @@ namespace BackupServer
             {
                 while (client.Connected)
                 {
-                    // Read incoming message
-                    byte[] buffer = new byte[1024 * 1024]; // 1MB buffer
-                    int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                    if (bytesRead == 0) break;
-
-                    string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    string[] parts = message.Split('|');
-
-                    if (parts.Length < 2) continue;
-
-                    string command = parts[0];
-                    string username = parts.Length > 1 ? parts[1] : "";
-                    string password = parts.Length > 2 ? parts[2] : "";
+                    // Read command header first
+                    string command = ReadMessage(stream);
+                    if (command == null) break;
 
                     Console.WriteLine($"Command received: {command}");
 
-                    // Handle authentication first
-                    if (command == "LOGIN")
+                    // Handle authentication
+                    if (command.StartsWith("LOGIN"))
                     {
+                        string[] parts = command.Split('|');
+                        string username = parts.Length > 1 ? parts[1] : "";
+                        string password = parts.Length > 2 ? parts[2] : "";
+
                         if (auth.AuthenticateUser(username, password))
                         {
                             isAuthenticated = true;
                             connectedUsername = username;
-                            SendResponse(stream, "AUTH_SUCCESS");
+                            SendMessage(stream, "AUTH_SUCCESS");
                             logger.LogMessage($"User {username} authenticated successfully");
                         }
                         else
                         {
-                            SendResponse(stream, "AUTH_FAILED");
+                            SendMessage(stream, "AUTH_FAILED");
                             logger.LogError($"Authentication failed for user: {username}");
                         }
                         continue;
@@ -103,66 +98,85 @@ namespace BackupServer
                     // Reject unauthenticated commands
                     if (!isAuthenticated)
                     {
-                        SendResponse(stream, "NOT_AUTHENTICATED");
+                        SendMessage(stream, "NOT_AUTHENTICATED");
                         continue;
                     }
 
                     // Handle authenticated commands
-                    switch (command)
+                    if (command.StartsWith("START_BACKUP"))
                     {
-                        case "START_BACKUP":
-                            stateMachine.HandleCommand(CommandType.START_BACKUP);
-                            SendResponse(stream, $"STATE:{stateMachine.GetCurrentState()}");
-                            logger.LogMessage($"Backup started by {connectedUsername}");
-                            break;
+                        stateMachine.HandleCommand(CommandType.START_BACKUP);
+                        SendMessage(stream, $"STATE:{stateMachine.GetCurrentState()}");
+                        logger.LogMessage($"Backup started by {connectedUsername}");
 
-                        case "UPLOAD_FILE":
-                            string fileName = parts.Length > 1 ? parts[1] : "backup.dat";
-                            byte[] fileData = new byte[bytesRead];
-                            Array.Copy(buffer, fileData, bytesRead);
-                            fileManager.SaveFile(fileName, fileData);
-                            stateMachine.HandleCommand(CommandType.STORE_COMPLETE);
-                            SendResponse(stream, "FILE_SAVED");
-                            logger.LogMessage($"File {fileName} saved for user {connectedUsername}");
-                            break;
+                        // Now receive the file
+                        string fileHeader = ReadMessage(stream);
+                        if (fileHeader != null && fileHeader.StartsWith("FILE|"))
+                        {
+                            string[] headerParts = fileHeader.Split('|');
+                            string fileName = headerParts[1];
+                            int fileSize = int.Parse(headerParts[2]);
 
-                        case "REQUEST_RESTORE":
-                            stateMachine.HandleCommand(CommandType.REQUEST_RESTORE);
-                            string restoreFile = parts.Length > 1 ? parts[1] : "restore.jpg";
-                            byte[] restoreData = fileManager.GetFile(restoreFile);
-                            if (restoreData != null)
+                            // Read file data
+                            byte[] fileData = ReadBytes(stream, fileSize);
+                            if (fileData != null)
                             {
-                                stream.Write(restoreData, 0, restoreData.Length);
-                                logger.LogMessage($"File {restoreFile} sent to {connectedUsername}");
+                                fileManager.SaveFile(fileName, fileData);
+                                stateMachine.HandleCommand(CommandType.STORE_COMPLETE);
+                                stateMachine.ResetToIdle();
+                                SendMessage(stream, "FILE_SAVED");
+                                logger.LogMessage($"File {fileName} saved for {connectedUsername}");
                             }
                             else
                             {
-                                SendResponse(stream, "FILE_NOT_FOUND");
+                                SendMessage(stream, "FILE_ERROR");
+                                stateMachine.ResetToIdle();
                             }
-                            stateMachine.ResetToIdle();
-                            break;
+                        }
+                    }
+                    else if (command.StartsWith("REQUEST_RESTORE"))
+                    {
+                        string[] parts = command.Split('|');
+                        string fileName = parts.Length > 1 ? parts[1] : "restore.jpg";
 
-                        case "ENTER_MAINTENANCE":
-                            stateMachine.HandleCommand(CommandType.ENTER_MAINTENANCE);
-                            SendResponse(stream, $"STATE:{stateMachine.GetCurrentState()}");
-                            logger.LogMessage("Server entered maintenance mode");
-                            break;
+                        stateMachine.HandleCommand(CommandType.REQUEST_RESTORE);
 
-                        case "EXIT_MAINTENANCE":
-                            stateMachine.HandleCommand(CommandType.EXIT_MAINTENANCE);
-                            SendResponse(stream, $"STATE:{stateMachine.GetCurrentState()}");
-                            logger.LogMessage("Server exited maintenance mode");
-                            break;
-
-                        case "LOGOUT":
-                            SendResponse(stream, "LOGOUT_SUCCESS");
-                            logger.LogMessage($"User {connectedUsername} logged out");
-                            client.Close();
-                            break;
-
-                        default:
-                            SendResponse(stream, "UNKNOWN_COMMAND");
-                            break;
+                        byte[] fileData = fileManager.GetFile(fileName);
+                        if (fileData != null)
+                        {
+                            // Send file size first then file data
+                            SendMessage(stream, $"FILE|{fileName}|{fileData.Length}");
+                            Thread.Sleep(100);
+                            stream.Write(fileData, 0, fileData.Length);
+                            logger.LogMessage($"File {fileName} sent to {connectedUsername}");
+                        }
+                        else
+                        {
+                            SendMessage(stream, "FILE_NOT_FOUND");
+                        }
+                        stateMachine.ResetToIdle();
+                    }
+                    else if (command.StartsWith("ENTER_MAINTENANCE"))
+                    {
+                        stateMachine.HandleCommand(CommandType.ENTER_MAINTENANCE);
+                        SendMessage(stream, $"STATE:{stateMachine.GetCurrentState()}");
+                        logger.LogMessage("Server entered maintenance mode");
+                    }
+                    else if (command.StartsWith("EXIT_MAINTENANCE"))
+                    {
+                        stateMachine.HandleCommand(CommandType.EXIT_MAINTENANCE);
+                        SendMessage(stream, $"STATE:{stateMachine.GetCurrentState()}");
+                        logger.LogMessage("Server exited maintenance mode");
+                    }
+                    else if (command.StartsWith("LOGOUT"))
+                    {
+                        SendMessage(stream, "LOGOUT_SUCCESS");
+                        logger.LogMessage($"User {connectedUsername} logged out");
+                        break;
+                    }
+                    else
+                    {
+                        SendMessage(stream, "UNKNOWN_COMMAND");
                     }
                 }
             }
@@ -179,11 +193,57 @@ namespace BackupServer
         }
 
         /// <summary>
-        /// Sends a response message to the client.
+        /// Reads a text message from the network stream.
+        /// </summary>
+        /// <param name="stream">The network stream to read from.</param>
+        /// <returns>The message string or null if connection closed.</returns>
+        static string ReadMessage(NetworkStream stream)
+        {
+            try
+            {
+                byte[] buffer = new byte[4096];
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                if (bytesRead == 0) return null;
+                return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads a specific number of bytes from the network stream.
+        /// </summary>
+        /// <param name="stream">The network stream to read from.</param>
+        /// <param name="size">The number of bytes to read.</param>
+        /// <returns>The byte array or null if failed.</returns>
+        static byte[] ReadBytes(NetworkStream stream, int size)
+        {
+            try
+            {
+                byte[] data = new byte[size];
+                int totalRead = 0;
+                while (totalRead < size)
+                {
+                    int bytesRead = stream.Read(data, totalRead, size - totalRead);
+                    if (bytesRead == 0) break;
+                    totalRead += bytesRead;
+                }
+                return data;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Sends a text message to the client.
         /// </summary>
         /// <param name="stream">The network stream to send on.</param>
         /// <param name="message">The message to send.</param>
-        static void SendResponse(NetworkStream stream, string message)
+        static void SendMessage(NetworkStream stream, string message)
         {
             byte[] response = Encoding.UTF8.GetBytes(message);
             stream.Write(response, 0, response.Length);

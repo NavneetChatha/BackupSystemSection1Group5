@@ -79,9 +79,13 @@ namespace BackupClient
         {
             try
             {
-                string header = $"UPLOAD_FILE|{fileName}";
+                // Send file header first
+                string header = $"FILE|{fileName}|{fileData.Length}";
                 byte[] headerBytes = Encoding.UTF8.GetBytes(header);
                 stream.Write(headerBytes, 0, headerBytes.Length);
+                System.Threading.Thread.Sleep(100);
+
+                // Then send file data
                 stream.Write(fileData, 0, fileData.Length);
                 logger.LogPacket("BACKUP", "UPLOAD_FILE", "TX", fileData.Length);
                 return true;

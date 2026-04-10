@@ -29,7 +29,7 @@ namespace BackupClient
         /// Handles the Backup File button click.
         /// Opens a file picker and sends the selected file to the server.
         /// </summary>
-        private void btnBackup_Click(object sender, EventArgs e)
+        private async void btnBackup_Click(object sender, EventArgs e)
         {
             OpenFileDialog fileDialog = new OpenFileDialog();
             fileDialog.Title = "Select a file to backup";
@@ -43,31 +43,43 @@ namespace BackupClient
 
                 progressBar.Visible = true;
                 progressBar.Value = 50;
+                btnBackup.Enabled = false;
 
-                connection.SendMessage("START_BACKUP");
-                string stateResponse = connection.ReceiveResponse();
-                lblState.Text = $"Server State: {stateResponse.Replace("STATE:", "")}";
-
-                bool sent = connection.SendFile(fileName, fileData);
-
-                if (sent)
+                await System.Threading.Tasks.Task.Run(() =>
                 {
+                    connection.SendMessage("START_BACKUP");
+                    string stateResponse = connection.ReceiveResponse();
+
+                    this.Invoke((Action)(() =>
+                    {
+                        lblState.Text = $"Server State: {stateResponse.Replace("STATE:", "")}";
+                    }));
+
+                    bool sent = connection.SendFile(fileName, fileData);
                     string response = connection.ReceiveResponse();
-                    progressBar.Value = 100;
-                    lblState.Text = "Server State: IDLE";
-                    MessageBox.Show($"File '{fileName}' backed up successfully!", "Success",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    logger.LogMessage($"File {fileName} backed up successfully");
-                }
-                else
-                {
-                    MessageBox.Show("Backup failed.", "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    logger.LogError("Backup failed");
-                }
 
-                progressBar.Visible = false;
-                progressBar.Value = 0;
+                    this.Invoke((Action)(() =>
+                    {
+                        if (sent)
+                        {
+                            progressBar.Value = 100;
+                            lblState.Text = "Server State: IDLE";
+                            MessageBox.Show($"File '{fileName}' backed up successfully!", "Success",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            logger.LogMessage($"File {fileName} backed up successfully");
+                        }
+                        else
+                        {
+                            MessageBox.Show("Backup failed.", "Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            logger.LogError("Backup failed");
+                        }
+
+                        progressBar.Visible = false;
+                        progressBar.Value = 0;
+                        btnBackup.Enabled = true;
+                    }));
+                });
             }
         }
 
@@ -75,7 +87,7 @@ namespace BackupClient
         /// Handles the Restore File button click.
         /// Requests a file restore from the server and saves it locally.
         /// </summary>
-        private void btnRestore_Click(object sender, EventArgs e)
+        private async void btnRestore_Click(object sender, EventArgs e)
         {
             string fileName = Microsoft.VisualBasic.Interaction.InputBox(
                 "Enter the filename to restore:", "Restore File", "restore.jpg");
@@ -84,34 +96,42 @@ namespace BackupClient
 
             progressBar.Visible = true;
             progressBar.Value = 50;
+            btnRestore.Enabled = false;
 
-            connection.SendMessage($"REQUEST_RESTORE|{fileName}");
-            byte[] fileData = connection.ReceiveFile();
-
-            if (fileData != null && fileData.Length > 0)
+            await System.Threading.Tasks.Task.Run(() =>
             {
-                SaveFileDialog saveDialog = new SaveFileDialog();
-                saveDialog.FileName = fileName;
-                saveDialog.Filter = "All Files (*.*)|*.*";
+                connection.SendMessage($"REQUEST_RESTORE|{fileName}");
+                byte[] fileData = connection.ReceiveFile();
 
-                if (saveDialog.ShowDialog() == DialogResult.OK)
+                this.Invoke((Action)(() =>
                 {
-                    File.WriteAllBytes(saveDialog.FileName, fileData);
-                    progressBar.Value = 100;
-                    MessageBox.Show($"File restored successfully!", "Success",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    logger.LogMessage($"File {fileName} restored successfully");
-                }
-            }
-            else
-            {
-                MessageBox.Show("File not found on server.", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                logger.LogError($"Restore failed for file: {fileName}");
-            }
+                    if (fileData != null && fileData.Length > 0)
+                    {
+                        SaveFileDialog saveDialog = new SaveFileDialog();
+                        saveDialog.FileName = fileName;
+                        saveDialog.Filter = "All Files (*.*)|*.*";
 
-            progressBar.Visible = false;
-            progressBar.Value = 0;
+                        if (saveDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            File.WriteAllBytes(saveDialog.FileName, fileData);
+                            progressBar.Value = 100;
+                            MessageBox.Show($"File restored successfully!", "Success",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            logger.LogMessage($"File {fileName} restored successfully");
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("File not found on server.", "Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        logger.LogError($"Restore failed for file: {fileName}");
+                    }
+
+                    progressBar.Visible = false;
+                    progressBar.Value = 0;
+                    btnRestore.Enabled = true;
+                }));
+            });
         }
 
         /// <summary>
