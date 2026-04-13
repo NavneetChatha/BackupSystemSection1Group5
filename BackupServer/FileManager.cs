@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.IO;
 
 namespace BackupServer
@@ -32,7 +32,8 @@ namespace BackupServer
         public bool SaveFile(string fileName, byte[] fileData)
         {
             try
-            {
+            {   
+                string fileNameOnly = Path.GetFileName(fileName); // Sanitize filename to prevent path traversal
                 string filePath = Path.Combine(storageDirectory, fileName);
                 File.WriteAllBytes(filePath, fileData);
                 Console.WriteLine($"File saved: {fileName}");
@@ -54,7 +55,8 @@ namespace BackupServer
         {
             try
             {
-                string filePath = Path.Combine(storageDirectory, fileName);
+                string fileNameOnly = Path.GetFileName(fileName); // Sanitize filename to prevent path traversal
+                string filePath = Path.Combine(storageDirectory, fileNameOnly);
                 if (File.Exists(filePath))
                 {
                     Console.WriteLine($"File retrieved: {fileName}");
@@ -79,7 +81,8 @@ namespace BackupServer
         {
             return File.Exists(Path.Combine(storageDirectory, fileName));
         }
-
+        
+        // Note: FileExists also needs to be updated to use fileNameOnly for consistency and security.
         /// <summary>
         /// Deletes a file from the server storage directory.
         /// </summary>
@@ -89,7 +92,8 @@ namespace BackupServer
         {
             try
             {
-                string filePath = Path.Combine(storageDirectory, fileName);
+                string fileNameOnly = Path.GetFileName(fileName); // Sanitize filename to prevent path traversal
+                string filePath = Path.Combine(storageDirectory, fileNameOnly);
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
