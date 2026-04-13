@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.IO;
 
 namespace BackupServer
@@ -9,6 +9,7 @@ namespace BackupServer
     public class ServerLogger
     {
         private string logFilePath;
+        private readonly object fileLock = new object();
 
         /// <summary>
         /// Initializes a new instance of the ServerLogger class.
@@ -61,7 +62,10 @@ namespace BackupServer
             try
             {
                 Console.WriteLine(message);
-                File.AppendAllText(logFilePath, message + Environment.NewLine);
+                lock (fileLock)
+                {
+                    File.AppendAllText(logFilePath, message + Environment.NewLine);
+                }
             }
             catch (Exception ex)
             {
