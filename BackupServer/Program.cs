@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -230,6 +230,10 @@ namespace BackupServer
                     if (bytesRead == 0) break;
                     totalRead += bytesRead;
                 }
+
+                // If the connection drops early, abort to prevent saving corrupted/zero-padded files
+                if (totalRead < size) return null;
+
                 return data;
             }
             catch
