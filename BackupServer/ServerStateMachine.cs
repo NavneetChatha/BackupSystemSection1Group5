@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 
 namespace BackupServer
 {
@@ -49,14 +49,20 @@ namespace BackupServer
                 case CommandType.START_BACKUP:
                     if (currentState == ServerState.IDLE)
                         TransitionTo(ServerState.RECEIVING_BACKUP);
+                    else
+                        Console.WriteLine($"Warning: Cannot START_BACKUP from state {currentState}. Command ignored.");
                     break;
                 case CommandType.STORE_COMPLETE:
                     if (currentState == ServerState.RECEIVING_BACKUP)
                         TransitionTo(ServerState.STORING_DATA);
+                    else
+                        Console.WriteLine($"Warning: Cannot STORE_COMPLETE from state {currentState}. Command ignored.");
                     break;
                 case CommandType.REQUEST_RESTORE:
                     if (currentState == ServerState.IDLE)
                         TransitionTo(ServerState.SENDING_RESTORE);
+                    else
+                        Console.WriteLine($"Warning: Cannot REQUEST_RESTORE from state {currentState}. Command ignored.");
                     break;
                 case CommandType.ENTER_MAINTENANCE:
                     TransitionTo(ServerState.MAINTENANCE);
@@ -64,6 +70,8 @@ namespace BackupServer
                 case CommandType.EXIT_MAINTENANCE:
                     if (currentState == ServerState.MAINTENANCE)
                         TransitionTo(ServerState.IDLE);
+                    else
+                        Console.WriteLine($"Warning: Cannot EXIT_MAINTENANCE from state {currentState}. Command ignored.");
                     break;
                 default:
                     Console.WriteLine("Unknown command received.");
