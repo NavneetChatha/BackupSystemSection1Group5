@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 
 namespace BackupServer
 {
@@ -21,6 +21,7 @@ namespace BackupServer
     public class ServerStateMachine
     {
         private ServerState currentState;
+        private readonly object stateLock = new object();
 
         /// <summary>
         /// Initializes the state machine with a default state of idle.
@@ -35,7 +36,10 @@ namespace BackupServer
         /// </summary>
         public ServerState GetCurrentState()
         {
-            return currentState;
+            lock (stateLock)
+            {
+                return currentState;
+            }
         }
 
         /// <summary>
@@ -44,38 +48,41 @@ namespace BackupServer
         /// <param name="command">The command received from the client.</param>
         public void HandleCommand(CommandType command)
         {
-            switch (command)
+          lock(stateLock)
             {
-                case CommandType.START_BACKUP:
-                    if (currentState == ServerState.IDLE)
-                        TransitionTo(ServerState.RECEIVING_BACKUP);
-                    else
-                        Console.WriteLine($"Warning: Cannot START_BACKUP from state {currentState}. Command ignored.");
-                    break;
-                case CommandType.STORE_COMPLETE:
-                    if (currentState == ServerState.RECEIVING_BACKUP)
-                        TransitionTo(ServerState.STORING_DATA);
-                    else
-                        Console.WriteLine($"Warning: Cannot STORE_COMPLETE from state {currentState}. Command ignored.");
-                    break;
-                case CommandType.REQUEST_RESTORE:
-                    if (currentState == ServerState.IDLE)
-                        TransitionTo(ServerState.SENDING_RESTORE);
-                    else
-                        Console.WriteLine($"Warning: Cannot REQUEST_RESTORE from state {currentState}. Command ignored.");
-                    break;
-                case CommandType.ENTER_MAINTENANCE:
-                    TransitionTo(ServerState.MAINTENANCE);
-                    break;
-                case CommandType.EXIT_MAINTENANCE:
-                    if (currentState == ServerState.MAINTENANCE)
-                        TransitionTo(ServerState.IDLE);
-                    else
-                        Console.WriteLine($"Warning: Cannot EXIT_MAINTENANCE from state {currentState}. Command ignored.");
-                    break;
-                default:
-                    Console.WriteLine("Unknown command received.");
-                    break;
+                switch (command)
+                {
+                    case CommandType.START_BACKUP:
+                        if (currentState == ServerState.IDLE)
+                            TransitionTo(ServerState.RECEIVING_BACKUP);
+                        else
+                            Console.WriteLine($"Warning: Cannot START_BACKUP from state {currentState}. Command ignored.");
+                        break;
+                    case CommandType.STORE_COMPLETE:
+                        if (currentState == ServerState.RECEIVING_BACKUP)
+                            TransitionTo(ServerState.STORING_DATA);
+                        else
+                            Console.WriteLine($"Warning: Cannot STORE_COMPLETE from state {currentState}. Command ignored.");
+                        break;
+                    case CommandType.REQUEST_RESTORE:
+                        if (currentState == ServerState.IDLE)
+                            TransitionTo(ServerState.SENDING_RESTORE);
+                        else
+                            Console.WriteLine($"Warning: Cannot REQUEST_RESTORE from state {currentState}. Command ignored.");
+                        break;
+                    case CommandType.ENTER_MAINTENANCE:
+                        TransitionTo(ServerState.MAINTENANCE);
+                        break;
+                    case CommandType.EXIT_MAINTENANCE:
+                        if (currentState == ServerState.MAINTENANCE)
+                            TransitionTo(ServerState.IDLE);
+                        else
+                            Console.WriteLine($"Warning: Cannot EXIT_MAINTENANCE from state {currentState}. Command ignored.");
+                        break;
+                    default:
+                        Console.WriteLine("Unknown command received.");
+                        break;
+                }
             }
         }
 
@@ -94,8 +101,11 @@ namespace BackupServer
         /// </summary>
         public void ResetToIdle()
         {
-            Console.WriteLine($"Resetting state to IDLE from {currentState}");
-            currentState = ServerState.IDLE;
+            lock (stateLock)
+            {
+                Console.WriteLine($"Resetting state to IDLE from {currentState}");
+                currentState = ServerState.IDLE;
+            }
         }
     }
 }
